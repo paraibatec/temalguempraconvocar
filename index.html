@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tem alguém pra convocar?</title>
+<title>Tem alguém para Convocar???</title>
 <style>
 :root{color-scheme:light;--bg:#e4e9f2;--card:#f6f8fc;--tx:#1b2538;--mut:#5d6a82;--bd:#c9d2e2;--pri:#3b5bdb;--ok:#0b7a53;--okbg:#d3efe3;--no:#b42318;--nobg:#f9dcd9;--wa:#8a6100;--wabg:#faecc4}
 *{box-sizing:border-box}
@@ -12,7 +12,8 @@ main{max-width:960px;margin:0 auto;padding:24px 16px 48px}
 h1{font-size:1.6rem;margin:0 0 4px}
 .sub{color:var(--mut);font-size:.9rem;margin-bottom:20px}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:18px;margin-bottom:16px;box-shadow:0 1px 4px rgba(30,50,90,.12)}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.grid{display:grid;grid-template-columns:1fr 1.2fr 2.6fr;gap:12px}
+@media(max-width:760px){.grid{grid-template-columns:1fr}}
 label{display:block;font-size:.75rem;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
 select{width:100%;padding:10px;border-radius:9px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);font-size:.95rem}
 select:disabled{opacity:.5}
@@ -34,6 +35,11 @@ tr:hover td{background:#dde5f3}
 .tag{padding:2px 8px;border-radius:999px;font-size:.75rem}
 .tag.c{background:var(--okbg);color:var(--ok)}.tag.a{background:var(--wabg);color:var(--wa)}
 #msg{color:var(--mut);font-size:.85rem}
+.vaga{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch}
+.info{flex:1 1 160px;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px 14px}
+.info small{display:block;font-size:.7rem;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+.info b{font-size:.95rem;word-break:break-word}
+.vagatitle{font-size:.8rem;color:var(--mut);margin:18px 0 8px;text-transform:uppercase;letter-spacing:.04em;font-weight:600}
 </style>
 </head>
 <body>
@@ -52,7 +58,7 @@ tr:hover td{background:#dde5f3}
 <script>
 // ===== CONFIGURAÇÃO =====
 const API_URL = "https://script.google.com/macros/s/AKfycbzIFNxRNaLV6qFXp646QWxtaR4c-s50gWitEjhY4mijchWWN89touajQ3NM0mDV_8btFw/exec";   // termina em /exec
-const FILTERS = [["edital","Edital"],["funcao","Função"],["vaga","Vaga"],["curso","Curso"],["unidade","Unidade"],["turno","Turno"],["municipio","Município"]];
+const FILTERS = [["edital","Edital"],["funcao","Função"],["vaga","Vaga"]];
 // =========================
 
 let rows = [], sel = {};
@@ -112,12 +118,18 @@ function render(){
 function showResult(){
   const all = FILTERS.every(([k])=>sel[k]!==undefined);
   const el=$("result");
-  if(!all){ el.innerHTML=`<div class="banner wa"><div class="big">Selecione os filtros</div><div class="next">Preencha todos os campos para ver se há candidato a convocar.</div></div>`; return; }
+  if(!all){ el.innerHTML=`<div class="banner wa"><div class="big">Selecione os filtros</div><div class="next">Selecione edital, função e vaga para ver se há candidato a convocar.</div></div>`; return; }
   const list = rows.filter(r=>FILTERS.every(([k])=>r[k]===sel[k])).sort((a,b)=>a.cn-b.cn);
   const pend = list.filter(r=>r.zn===null);
   const conv = list.filter(r=>r.zn!==null);
   const lastZ = conv.length ? Math.max(...conv.map(r=>r.zn)) : 0;
   const next = pend[0];
+  const v = list[0];
+  const infoVaga = v ? `<div class="vagatitle">Dados da vaga</div><div class="vaga">
+    <div class="info"><small>Unidade</small><b>${v.unidade||"—"}</b></div>
+    <div class="info"><small>Município</small><b>${v.municipio||"—"}</b></div>
+    <div class="info"><small>Turno</small><b>${v.turno||"—"}</b></div>
+    <div class="info"><small>Curso</small><b>${v.curso||"—"}</b></div></div>` : "";
   let banner;
   if(!list.length) banner=`<div class="banner wa"><div class="big">Nenhum classificado encontrado</div></div>`;
   else if(next) banner=`<div class="banner ok"><div class="big">SIM, tem candidato para convocar</div>
@@ -130,7 +142,7 @@ function showResult(){
   const body = list.map(r=>`<tr class="${r===next?"next-row":""}"><td>${r.classif}º</td><td>${r.nome}</td><td>${r.concorr||"—"}</td>
     <td>${r.inicio||"—"}</td><td>${r.termino||"—"}</td>
     <td>${r.zn!==null?`<span class="tag c">Convocado nº ${r.convoc}</span>`:`<span class="tag a">Aguardando</span>`}</td></tr>`).join("");
-  el.innerHTML=banner+(list.length?`<div class="card scroll" style="margin-top:16px"><table><thead><tr><th>Class.</th><th>Nome</th><th>Concorrência</th><th>Início do vínculo</th><th>Término do vínculo</th><th>Situação</th></tr></thead><tbody>${body}</tbody></table></div>`:"");
+  el.innerHTML=banner+infoVaga+(list.length?`<div class="card scroll" style="margin-top:16px"><table><thead><tr><th>Class.</th><th>Nome</th><th>Concorrência</th><th>Início do vínculo</th><th>Término do vínculo</th><th>Situação</th></tr></thead><tbody>${body}</tbody></table></div>`:"");
 }
 
 $("reload").onclick=load;
