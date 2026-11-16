@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tem alguém pra convocar?</title>
+<style>
+:root{color-scheme:light;--bg:#e4e9f2;--card:#f6f8fc;--tx:#1b2538;--mut:#5d6a82;--bd:#c9d2e2;--pri:#3b5bdb;--ok:#0b7a53;--okbg:#d3efe3;--no:#b42318;--nobg:#f9dcd9;--wa:#8a6100;--wabg:#faecc4}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--tx)}
+main{max-width:960px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:1.6rem;margin:0 0 4px}
+.sub{color:var(--mut);font-size:.9rem;margin-bottom:20px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:18px;margin-bottom:16px;box-shadow:0 1px 4px rgba(30,50,90,.12)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+label{display:block;font-size:.75rem;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+select{width:100%;padding:10px;border-radius:9px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);font-size:.95rem}
+select:disabled{opacity:.5}
+button{border:0;background:var(--pri);color:#fff;padding:9px 16px;border-radius:9px;font-size:.9rem;cursor:pointer}
+button.ghost{background:transparent;color:var(--pri);border:1px solid var(--bd)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.banner{border-radius:16px;padding:22px;text-align:center;border:1px solid var(--bd)}
+.banner .big{font-size:2rem;font-weight:800}
+.banner.ok{background:var(--okbg);color:var(--ok)}.banner.no{background:var(--nobg);color:var(--no)}.banner.wa{background:var(--wabg);color:var(--wa)}
+.next{margin-top:10px;font-size:1.05rem;color:var(--tx)}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;justify-content:center}
+.pill{background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:999px;padding:4px 12px;font-size:.85rem}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--bd);white-space:nowrap}
+th{color:var(--mut);font-size:.75rem;text-transform:uppercase}
+tr.next-row td{background:var(--okbg);font-weight:600}
+tr:hover td{background:#dde5f3}
+.tag{padding:2px 8px;border-radius:999px;font-size:.75rem}
+.tag.c{background:var(--okbg);color:var(--ok)}.tag.a{background:var(--wabg);color:var(--wa)}
+#msg{color:var(--mut);font-size:.85rem}
+</style>
+</head>
+<body>
+<main>
+<h1>Tem alguém pra convocar?</h1>
+<div class="sub">Consulta em tempo real da base BD RH <span id="msg"></span></div>
+
+<div class="card">
+  <div class="grid" id="filters"></div>
+  <div class="row"><button id="reload">Atualizar dados</button><button class="ghost" id="clear">Limpar filtros</button></div>
+</div>
+
+<div id="result"></div>
+</main>
+
+<script>
+// ===== CONFIGURAÇÃO =====
+const API_URL = "https://script.google.com/macros/s/AKfycbzIFNxRNaLV6qFXp646QWxtaR4c-s50gWitEjhY4mijchWWN89touajQ3NM0mDV_8btFw/exec";   // termina em /exec
+const FILTERS = [["edital","Edital"],["funcao","Função"],["vaga","Vaga"],["curso","Curso"],["unidade","Unidade"],["turno","Turno"],["municipio","Município"]];
+// =========================
+
+let rows = [], sel = {};
+const $ = id => document.getElementById(id);
+
+const norm = s => (s||"").toString().trim();
+
+async function load(){
+  $("msg").textContent = "· carregando...";
+  try{
+    const res = await fetch(API_URL, {cache:"no-store"});
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const j = await res.json();
+    if(!j.ok) throw new Error(j.erro||"Erro na API");
+    rows = j.dados.map(o=>{
+      for(const k in o) o[k]=norm(o[k]);
+      const n = parseFloat(o.classif.replace(",", "."));
+      o.cn = isNaN(n) ? null : n;
+      const z = parseFloat(o.convoc.replace(",", "."));
+      o.zn = isNaN(z) ? null : z;
+      return o;
+    }).filter(o=>o.cn!==null);
+    $("msg").textContent = "· atualizado em " + j.atualizado + " · " + rows.length + " classificados";
+    render();
+  }catch(e){
+    $("msg").textContent = "";
+    $("result").innerHTML = `<div class="banner no"><div class="big">Erro ao carregar os dados</div><div class="next">${e.message}<br>Confira a URL da API no início do script.</div></div>`;
+  }
+}
+
+function matching(upTo){
+  return rows.filter(r=>FILTERS.slice(0,upTo).every(([k])=>sel[k]===undefined||r[k]===sel[k]));
+}
+
+function render(){
+  const box=$("filters"); box.innerHTML="";
+  let enabled=true;
+  FILTERS.forEach(([k,label],i)=>{
+    const base = matching(i);
+    const vals = [...new Set(base.map(r=>r[k]))].sort((a,b)=>a.localeCompare(b,"pt-BR",{numeric:true}));
+    if(vals.length===1 && sel[k]===undefined && enabled) sel[k]=vals[0];
+    if(sel[k]!==undefined && !vals.includes(sel[k])) delete sel[k];
+    const d=document.createElement("div");
+    d.innerHTML=`<label>${label}</label>`;
+    const s=document.createElement("select");
+    s.disabled=!enabled;
+    s.innerHTML=`<option value="__">Selecione...</option>`+vals.map(v=>`<option value="${v.replace(/"/g,"&quot;")}">${v||"(em branco)"}</option>`).join("");
+    s.value = sel[k]===undefined ? "__" : sel[k];
+    s.onchange=()=>{ if(s.value==="__") delete sel[k]; else sel[k]=s.value;
+      FILTERS.slice(i+1).forEach(([kk])=>delete sel[kk]); render(); };
+    d.appendChild(s); box.appendChild(d);
+    if(sel[k]===undefined) enabled=false;
+  });
+  showResult();
+}
+
+function showResult(){
+  const all = FILTERS.every(([k])=>sel[k]!==undefined);
+  const el=$("result");
+  if(!all){ el.innerHTML=`<div class="banner wa"><div class="big">Selecione os filtros</div><div class="next">Preencha todos os campos para ver se há candidato a convocar.</div></div>`; return; }
+  const list = rows.filter(r=>FILTERS.every(([k])=>r[k]===sel[k])).sort((a,b)=>a.cn-b.cn);
+  const pend = list.filter(r=>r.zn===null);
+  const conv = list.filter(r=>r.zn!==null);
+  const lastZ = conv.length ? Math.max(...conv.map(r=>r.zn)) : 0;
+  const next = pend[0];
+  let banner;
+  if(!list.length) banner=`<div class="banner wa"><div class="big">Nenhum classificado encontrado</div></div>`;
+  else if(next) banner=`<div class="banner ok"><div class="big">SIM, tem candidato para convocar</div>
+    <div class="next">Próximo: <b>${next.classif}º</b> — <b>${next.nome}</b> (${next.concorr||"—"})<br>
+    ${[next.tel1,next.tel2,next.email].filter(Boolean).join(" · ")||"Sem contato cadastrado"}</div>
+    <div class="stats"><span class="pill">Próxima convocação: nº ${lastZ+1}</span><span class="pill">${pend.length} aguardando</span><span class="pill">${conv.length} já convocados</span></div></div>`;
+  else banner=`<div class="banner no"><div class="big">NÃO, ninguém para convocar</div>
+    <div class="next">Todos os ${list.length} classificados desta vaga já foram convocados.</div>
+    <div class="stats"><span class="pill">${conv.length} convocados</span><span class="pill">Última convocação: nº ${lastZ}</span></div></div>`;
+  const body = list.map(r=>`<tr class="${r===next?"next-row":""}"><td>${r.classif}º</td><td>${r.nome}</td><td>${r.concorr||"—"}</td>
+    <td>${r.inicio||"—"}</td><td>${r.termino||"—"}</td>
+    <td>${r.zn!==null?`<span class="tag c">Convocado nº ${r.convoc}</span>`:`<span class="tag a">Aguardando</span>`}</td></tr>`).join("");
+  el.innerHTML=banner+(list.length?`<div class="card scroll" style="margin-top:16px"><table><thead><tr><th>Class.</th><th>Nome</th><th>Concorrência</th><th>Início do vínculo</th><th>Término do vínculo</th><th>Situação</th></tr></thead><tbody>${body}</tbody></table></div>`:"");
+}
+
+$("reload").onclick=load;
+$("clear").onclick=()=>{sel={};render();};
+load();
+</script>
+</body>
+</html>
