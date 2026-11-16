@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tem alguém pra Convocar???</title>
+<title>Tem alguém pra convocar?</title>
 <style>
 :root{color-scheme:light;--bg:#e4e9f2;--card:#f6f8fc;--tx:#1b2538;--mut:#5d6a82;--bd:#c9d2e2;--pri:#3b5bdb;--ok:#0b7a53;--okbg:#d3efe3;--no:#b42318;--nobg:#f9dcd9;--wa:#8a6100;--wabg:#faecc4}
 *{box-sizing:border-box}
@@ -35,6 +35,18 @@ tr:hover td{background:#dde5f3}
 .tag{padding:2px 8px;border-radius:999px;font-size:.75rem}
 .tag.c{background:var(--okbg);color:var(--ok)}.tag.a{background:var(--wabg);color:var(--wa)}
 #msg{color:var(--mut);font-size:.85rem}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tab{background:transparent;color:var(--mut);border:1px solid var(--bd)}
+.tab.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+input[type=text]{width:100%;padding:10px;border-radius:9px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);font-size:.95rem}
+.grid.nome{grid-template-columns:1fr 3.8fr}
+@media(max-width:760px){.grid.nome{grid-template-columns:1fr}}
+.pick{display:block;width:100%;text-align:left;background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:12px;padding:12px 14px;margin-bottom:8px}
+.pick:hover{border-color:var(--pri)}
+.pick small{color:var(--mut);display:block;margin-top:2px}
+.me{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+tr.me-row td{font-weight:700}
+tr.me-row td:first-child{box-shadow:inset 4px 0 var(--pri)}
 .vaga{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch}
 .info{flex:1 1 160px;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px 14px}
 .info small{display:block;font-size:.7rem;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
@@ -48,6 +60,7 @@ tr:hover td{background:#dde5f3}
 <div class="sub">Consulta em tempo real da base BD RH <span id="msg"></span></div>
 
 <div class="card">
+  <div class="tabs"><button class="tab on" id="tabVaga">Por vaga</button><button class="tab" id="tabNome">Por nome</button></div>
   <div class="grid" id="filters"></div>
   <div class="row"><button id="reload">Atualizar dados</button><button class="ghost" id="clear">Limpar filtros</button></div>
 </div>
@@ -61,7 +74,7 @@ const API_URL = "https://script.google.com/macros/s/AKfycbzIFNxRNaLV6qFXp646QWxt
 const FILTERS = [["edital","Edital"],["funcao","Função"],["vaga","Vaga"]];
 // =========================
 
-let rows = [], sel = {};
+let rows = [], sel = {}, mode = "vaga", ned, q = "", picked = null, lastMatches = [];
 const $ = id => document.getElementById(id);
 
 const norm = s => (s||"").toString().trim();
@@ -93,8 +106,10 @@ function matching(upTo){
   return rows.filter(r=>FILTERS.slice(0,upTo).every(([k])=>sel[k]===undefined||r[k]===sel[k]));
 }
 
-function render(){
-  const box=$("filters"); box.innerHTML="";
+function render(){ if(mode==="vaga") renderVagaMode(); else renderNome(); }
+
+function renderVagaMode(){
+  const box=$("filters"); box.className="grid"; box.innerHTML="";
   let enabled=true;
   FILTERS.forEach(([k,label],i)=>{
     const base = matching(i);
@@ -115,21 +130,29 @@ function render(){
   showResult();
 }
 
+const fold = t => (t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+const byClass = (a,b)=>a.cn-b.cn;
+
 function showResult(){
   const all = FILTERS.every(([k])=>sel[k]!==undefined);
+  if(!all){ $("result").innerHTML=`<div class="banner wa"><div class="big">Selecione os filtros</div><div class="next">Selecione edital, função e vaga para ver se há candidato a convocar.</div></div>`; return; }
+  renderVaga(rows.filter(r=>FILTERS.every(([k])=>r[k]===sel[k])).sort(byClass), null);
+}
+
+function renderVaga(list, hl){
   const el=$("result");
-  if(!all){ el.innerHTML=`<div class="banner wa"><div class="big">Selecione os filtros</div><div class="next">Selecione edital, função e vaga para ver se há candidato a convocar.</div></div>`; return; }
-  const list = rows.filter(r=>FILTERS.every(([k])=>r[k]===sel[k])).sort((a,b)=>a.cn-b.cn);
   const pend = list.filter(r=>r.zn===null);
   const conv = list.filter(r=>r.zn!==null);
   const lastZ = conv.length ? Math.max(...conv.map(r=>r.zn)) : 0;
   const next = pend[0];
   const v = list[0];
-  const infoVaga = v ? `<div class="vagatitle">Dados da vaga</div><div class="vaga">
+  const extra = hl ? `<div class="info"><small>Edital</small><b>${v.edital}</b></div><div class="info"><small>Função</small><b>${v.funcao||"—"}</b></div><div class="info" style="flex-basis:100%"><small>Vaga</small><b>${v.vaga||"—"}</b></div>` : "";
+  const infoVaga = v ? `<div class="vagatitle">Dados da vaga</div><div class="vaga">${extra}
     <div class="info"><small>Unidade</small><b>${v.unidade||"—"}</b></div>
     <div class="info"><small>Município</small><b>${v.municipio||"—"}</b></div>
     <div class="info"><small>Turno</small><b>${v.turno||"—"}</b></div>
     <div class="info"><small>Curso</small><b>${v.curso||"—"}</b></div></div>` : "";
+  const person = hl ? `<div class="card me" style="margin-bottom:14px"><b>${hl.nome}</b><span class="pill">${hl.classif}º · ${hl.concorr||"—"}</span>${hl.zn!==null?`<span class="tag c">Convocado nº ${hl.convoc}</span>`:`<span class="tag a">Aguardando convocação</span>`}</div>` : "";
   let banner;
   if(!list.length) banner=`<div class="banner wa"><div class="big">Nenhum classificado encontrado</div></div>`;
   else if(next) banner=`<div class="banner ok"><div class="big">SIM, tem candidato para convocar</div>
@@ -139,14 +162,56 @@ function showResult(){
   else banner=`<div class="banner no"><div class="big">NÃO, ninguém para convocar</div>
     <div class="next">Todos os ${list.length} classificados desta vaga já foram convocados.</div>
     <div class="stats"><span class="pill">${conv.length} convocados</span><span class="pill">Última convocação: nº ${lastZ}</span></div></div>`;
-  const body = list.map(r=>`<tr class="${r===next?"next-row":""}"><td>${r.classif}º</td><td>${r.nome}</td><td>${r.concorr||"—"}</td>
+  const body = list.map(r=>`<tr class="${r===next?"next-row":""} ${r===hl?"me-row":""}"><td>${r.classif}º</td><td>${r.nome}</td><td>${r.concorr||"—"}</td>
     <td>${r.inicio||"—"}</td><td>${r.termino||"—"}</td>
     <td>${r.zn!==null?`<span class="tag c">Convocado nº ${r.convoc}</span>`:`<span class="tag a">Aguardando</span>`}</td></tr>`).join("");
-  el.innerHTML=banner+infoVaga+(list.length?`<div class="card scroll" style="margin-top:16px"><table><thead><tr><th>Class.</th><th>Nome</th><th>Concorrência</th><th>Início do vínculo</th><th>Término do vínculo</th><th>Situação</th></tr></thead><tbody>${body}</tbody></table></div>`:"");
+  el.innerHTML=person+banner+infoVaga+(list.length?`<div class="card scroll" style="margin-top:16px"><table><thead><tr><th>Class.</th><th>Nome</th><th>Concorrência</th><th>Início do vínculo</th><th>Término do vínculo</th><th>Situação</th></tr></thead><tbody>${body}</tbody></table></div>`:"");
 }
 
+function renderNome(){
+  const box=$("filters"); box.className="grid nome"; box.innerHTML="";
+  const eds=[...new Set(rows.map(r=>r.edital))].sort((a,b)=>a.localeCompare(b,"pt-BR",{numeric:true}));
+  if(eds.length===1 && ned===undefined) ned=eds[0];
+  if(ned!==undefined && !eds.includes(ned)) ned=undefined;
+  const d1=document.createElement("div"); d1.innerHTML="<label>Edital</label>";
+  const s1=document.createElement("select");
+  s1.innerHTML=`<option value="__">Selecione...</option>`+eds.map(v=>`<option value="${v}">${v||"(em branco)"}</option>`).join("");
+  s1.value = ned===undefined ? "__" : ned;
+  s1.onchange=()=>{ ned = s1.value==="__" ? undefined : s1.value; picked=null; showNome(); };
+  d1.appendChild(s1);
+  const d2=document.createElement("div"); d2.innerHTML="<label>Nome do candidato</label>";
+  const i2=document.createElement("input"); i2.type="text"; i2.placeholder="Digite o nome (ou parte dele)"; i2.value=q; i2.autocomplete="off";
+  i2.oninput=()=>{ q=i2.value; picked=null; showNome(); };
+  d2.appendChild(i2);
+  box.appendChild(d1); box.appendChild(d2);
+  showNome();
+}
+
+function showNome(){
+  const el=$("result");
+  const terms=fold(q).split(/\s+/).filter(Boolean);
+  if(ned===undefined || terms.join("").length<3){
+    el.innerHTML=`<div class="banner wa"><div class="big">Selecione o edital e digite o nome</div><div class="next">Digite pelo menos 3 letras. Acentos e maiúsculas não importam.</div></div>`; return; }
+  const m=rows.filter(r=>r.edital===ned && terms.every(t=>fold(r.nome).includes(t))).sort((a,b)=>a.nome.localeCompare(b.nome,"pt-BR"));
+  if(!m.length){ el.innerHTML=`<div class="banner wa"><div class="big">Nenhum candidato encontrado</div><div class="next">Não há classificado com esse nome neste edital.</div></div>`; return; }
+  let hl = picked && m.includes(picked) ? picked : (m.length===1 ? m[0] : null);
+  if(!hl){
+    lastMatches=m.slice(0,50);
+    el.innerHTML=`<div class="vagatitle">${m.length} resultados — escolha um${m.length>50?" (mostrando 50, refine a busca)":""}</div>`+
+      lastMatches.map((r,i)=>`<button class="pick" data-i="${i}"><b>${r.nome}</b><small>${r.classif}º · ${r.funcao||"—"} · ${r.vaga||"—"}</small></button>`).join("");
+    el.querySelectorAll(".pick").forEach(b=>b.onclick=()=>{ picked=lastMatches[+b.dataset.i]; showNome(); window.scrollTo({top:0,behavior:"smooth"}); });
+    return;
+  }
+  renderVaga(rows.filter(r=>r.edital===hl.edital&&r.funcao===hl.funcao&&r.vaga===hl.vaga).sort(byClass), hl);
+}
+
+function setMode(m){
+  mode=m; $("tabVaga").classList.toggle("on",m==="vaga"); $("tabNome").classList.toggle("on",m==="nome"); render();
+}
+$("tabVaga").onclick=()=>setMode("vaga");
+$("tabNome").onclick=()=>setMode("nome");
 $("reload").onclick=load;
-$("clear").onclick=()=>{sel={};render();};
+$("clear").onclick=()=>{sel={};ned=undefined;q="";picked=null;render();};
 load();
 </script>
 </body>
